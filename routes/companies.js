@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require("../db");
 const ExpressError = require("../expressError");
 const expressError = require("../expressError");
+const slugify = require("slugify");
 
 router.use(express.json());
 
@@ -18,16 +19,29 @@ router.get("/", async (req, res, next) => {
 
 router.get("/:code", async (req, res, next) => {
   try {
+    const string = slugify("Hellow", {
+      remove: /[*+~.()''"!:@#$%^&=?`]/,
+      lower: true,
+    });
+    console.log(string);
     const { code } = req.params;
     console.log(code);
     const results = await db.query(`SELECT * FROM companies WHERE code = $1`, [
       `${code}`,
     ]);
+    const industries = await db.query(
+      "SELECT i.industry FROM companies AS c LEFT JOIN companies_industries AS ci ON ci.company_code =c.code LEFT JOIN industries AS i ON ci.industry_id=i.id WHERE c.code=$1",
+      [`${code}`]
+    );
     const invoices = await db.query(
       "SELECT * FROM invoices WHERE comp_Code=$1",
       [`${code}`]
     );
-    return res.json({ company: results.rows, invoices: invoices.rows });
+    return res.json({
+      company: results.rows,
+      invoices: invoices.rows,
+      industries: industries.rows.map((i) => i.industry),
+    });
   } catch (e) {
     return next(e);
   }
@@ -35,7 +49,12 @@ router.get("/:code", async (req, res, next) => {
 
 router.post("/", async (req, res, next) => {
   try {
-    const { code, name, description } = req.body;
+    const { name, description } = req.body;
+    const code = slugify(name, {
+      replacement: "",
+      remove: /[*+~.()''"!:@]/,
+      lower: true,
+    });
     const addCompany = db.query("INSERT INTO companies VALUES ($1,$2,$3)", [
       code,
       name,

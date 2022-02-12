@@ -39,22 +39,33 @@ router.post("/", async (req, res, next) => {
 router.patch("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { comp_Code, amt, paid, paid_date } = req.body;
-    const findInvoice = await db.query("SELECT * FROM invoices WHERE id=$1", [
-      id,
-    ]);
-    if (findInvoice.rows.length === 0) {
-      throw new expressError(
-        `Sorry, invoice with the id:${id} does not exist`,
-        404
+    const { amt, paid } = req.body;
+
+    // if (verifyAmt === 0 && paid === true) {
+    //   const results = await db.query(
+    //     "UPDATE invoices SET paid=$1 WHERE id=$2 RETURNING comp_code,amt,paid",
+    //     [results.rows[0].paid, id]
+    //   );
+    //   return res.json(results.rows);
+    // } else if (paid === true) {
+    // }
+    if (paid === true) {
+      const results = await db.query(
+        "UPDATE invoices SET amt=amt-$1 WHERE id=$2 RETURNING comp_code,amt",
+        [amt, id]
       );
+
+      return res.json(results.rows);
     }
-    const results = await db.query(
-      `UPDATE invoices SET comp_Code=$1,amt=$2,paid=$3,paid_date=$4 WHERE id=$5 RETURNING comp_Code`,
-      [comp_Code, amt, paid, paid_date, id]
-    );
-    return res.json(results.rows);
   } catch (e) {
+    if (e.code === "23514") {
+      const paidResults = await db.query(
+        "UPDATE invoices SET paid=true,paid_date=CURRENT_DATE WHERE id=$1 RETURNING comp_code,amt,paid,paid_date",
+        [req.params.id]
+      );
+      return res.json(paidResults.rows);
+    }
+    console.log(e.code === "23514");
     return next(e);
   }
 });
